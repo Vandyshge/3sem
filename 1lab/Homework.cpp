@@ -15,7 +15,7 @@ struct vector3 {
     double y;
     double z;
 
-    double lenth(vector3 r) {
+    double length(vector3 r) {
         double L2 = pow((r.x - x), 2) + pow((r.y - y), 2) + pow((r.z - z), 2);
         // std::cout << "L2: " << L2 << std::endl;
         return pow(L2, 0.5);
@@ -26,7 +26,7 @@ struct vector3 {
         return r1;
     }
 
-    std::string v32s() {
+    std::string vector3_to_s() {
         std::string s = "{" + std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + "}";
         return s;
     }
@@ -60,63 +60,68 @@ protected:
     vector3 force = {0, 0, 0};
     std::string name;
     // Логгер для записи событий
-    Logger logger;
+    static Logger logger;
     double dt = 0;
-
+    static int num_particular;
 public:
-    Particle() = default;
-    explicit Particle(vector3 r, vector3 v, double mass_, double charge_, std::string name_, double dt_) {
-        mass = mass_;
-        charge = charge_;
-        coordinate = r;
-        velocity = v;
-        name = name_;
+    Particle() {num_particular++;}
+    explicit Particle(vector3 r, vector3 v, double mass_, double charge_, std::string name_, double dt_) :
+        mass(mass_), charge(charge_), coordinate(r), velocity(v), name(name_), dt(dt_) {        name = name_;
         logger.log("created: " + name_);
-        dt = dt_;
+        num_particular++;
     }
     // метод, который вам необходимо переопределить в дочерних классах
     // см. или вспомнить лекцию
     // внутри него напишите логику взаимодействия двух частиц (например, кулоновское)
     void change_force(Particle* p) {
-        double l = coordinate.lenth(p->coordinate);
+        double l = coordinate.length(p->coordinate);
         vector3 r = coordinate.r(p->coordinate);
         double f = p->charge*charge/(pow(l, 2));
-        // std::cout << l << "   " << r.v32s() << std::endl;
+        // std::cout << l << "   " << r.vector3_to_s() << std::endl;
         force.x = force.x + f*r.x/l;
         force.z = force.z + f*r.z/l;
         force.y = force.y + f*r.y/l;
-        // std::cout << force.v32s() << std::endl;
+        // std::cout << force.vector3_to_s() << std::endl;
     }
 
     void interaction() {
         velocity = {velocity.x + force.x/mass*dt, velocity.y + force.y/mass*dt, velocity.z + force.z/mass*dt};
         force = {0, 0, 0};
         coordinate = {coordinate.x + velocity.x*dt, coordinate.y + velocity.y*dt, coordinate.z + velocity.z*dt};
-        logger.log("change: name=" + name + ", coordinate=" + coordinate.v32s());
+        logger.log("change: name=" + name + ", coordinate=" + coordinate.vector3_to_s());
     }
 
-    
+    std::string getNum() {
+        // std::cout << velocity.length({0, 0, 0}) << std::endl;
+        return std::to_string(num_particular);
+    }
+
     std::string getName() {
         return name;
     }
 
     std::string getEnergy() {
-        // std::cout << velocity.lenth({0, 0, 0}) << std::endl;
-        return std::to_string(mass * pow(velocity.lenth({0, 0, 0}), 2) / 2);
+        // std::cout << velocity.length({0, 0, 0}) << std::endl;
+        return std::to_string(mass * pow(velocity.length({0, 0, 0}), 2) / 2);
     }
 
     std::string getCoor() {
-        return coordinate.v32s();
+        return coordinate.vector3_to_s();
     }
 
     std::string getVel() {
-        return velocity.v32s();
+        return velocity.vector3_to_s();
     }
 
     ~Particle() {
         logger.log("destroyed: " + name);
+        num_particular--;
     }
 };
+
+int Particle::num_particular = 0;
+Logger Particle::logger;
+
 
 // описать несколько классов разных частиц
 // например такой
@@ -192,14 +197,15 @@ public:
             if (v[i] == p) {
                 delete p;
                 v.erase(v.begin() + i);
+                
                 break;
             }
         }
     }
 
     void interaction() {
-        for (auto pi : v) {
-            for (auto pj : v) {
+        for (auto &pi : v) {
+            for (auto &pj : v) {
                 if (pi != pj) {
                     pi->change_force(pj);
                 }
@@ -219,13 +225,20 @@ public:
 
 // перегрузите оператор вывода, чтобы можно было вывести состав мира
 // (может потребоваться перегрузка оператора вывода для частиц)
+std::ostream &operator<<(std::ostream &os, Particle &p) {
+    // std::cout << 0 << std::endl;
+    os << p.getName() << ": energy: " << p.getEnergy() << " ; position: " << p.getCoor() << " ; velocity: " << p.getVel() << std::endl;
+    return os;
+}
+
 std::ostream &operator<<(std::ostream &os, World &w) {
     // std::cout << 0 << std::endl;
     os << "-------------------------------------------------------------------------------------------" << std::endl;
     os << "info:" << std::endl;
-    for (auto p : w.v) {
+    for (auto &p : w.v) {
         // std::cout << p << std::endl;
-        os << p->getName() << ": energy: " << p->getEnergy() << " ; position: " << p->getCoor() << " ; velocity: " << p->getVel() << std::endl;
+        os << (*p);
+        // os << p->getName() << ": energy: " << p->getEnergy() << " ; position: " << p->getCoor() << " ; velocity: " << p->getVel() << std::endl;
     }
     os << "-------------------------------------------------------------------------------------------" << std::endl;
     return os;
@@ -247,4 +260,5 @@ int main() {
     }
     world.deleteParticle(world.v[0]);
     std::cout << world;
+    std::cout << world.v[0]->getNum() << "\n";
 }
