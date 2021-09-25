@@ -91,12 +91,12 @@ public:
         logger.log("change: name=" + name + ", coordinate=" + coordinate.vector3_to_s());
     }
 
-    std::string getNum() {
+    std::string getNum() const {
         // std::cout << velocity.length({0, 0, 0}) << std::endl;
         return std::to_string(num_particular);
     }
 
-    std::string getName() {
+    std::string getName() const {
         return name;
     }
 
@@ -158,7 +158,7 @@ class World {
 public:
     std::vector<Particle *> v;
 
-    double rand_v(int energy) {
+    double rand_v(int energy) const {
         double pos = 1;
         if (rand()%2 == 0) {
             pos = -1;
@@ -166,7 +166,7 @@ public:
         return pos * (rand()% energy) / 100;
     }
 
-    double rand_r() {
+    double rand_r() const {
         double pos = 1;
         if (rand()%2 == 0) {
             pos = -1;
