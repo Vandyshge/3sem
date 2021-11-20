@@ -3,6 +3,11 @@
 #include <limits>
 #include <random>  
 #include <ctime> 
+#include <fstream>
+#include <chrono>
+#include <cassert>
+#include <ratio>
+#include <thread>
 
 std::random_device rd;
 std::mt19937 gen(rd());
@@ -48,7 +53,7 @@ public:
         NIL->prev = head;
     }
 
-    SkipList(std::vector <T> const &values, std::vector <float> const &keys) : probability(0.5), size_list(keys.size()), maxLevel(1) {
+    SkipList(std::vector <T> const &values, std::vector <float> const &keys, float p_) : probability(p_), size_list(0), maxLevel(1) {
         head->key = std::numeric_limits<float>::min();
         head->forwardNodes = {NIL};
         head->prev;
@@ -97,7 +102,7 @@ public:
         }
     }
 
-    SkipList(BidirectionIterator<T> &it1, BidirectionIterator<T> &it2) : probability(0.5), size_list(0), maxLevel(1) {
+    SkipList(BidirectionIterator<T> &it1, BidirectionIterator<T> &it2, float p_) : probability(p_), size_list(0), maxLevel(1) {
         head->key = std::numeric_limits<float>::min();
         head->prev = nullptr;
         NIL->key = std::numeric_limits<float>::max();
@@ -201,7 +206,7 @@ public:
         return head;
     }
 
-    SkipNode<T>* find(float key_) {
+    BidirectionIterator<T> find(float key_) {
         // std::cout << "---------------------------------------"  << std::endl;
         // std::cout << "find: key=" << key_ << "\n\n";
         if (size() == 0) return bend();
@@ -244,6 +249,7 @@ public:
         NewNode->forwardNodes.resize(c);
         int tmp_c = c;
         SkipNode<T>* prev;
+        size_list++;
         // SkipNode<T>* next;
         if (c > maxLevel) {
             head->forwardNodes.emplace_back(NewNode);
@@ -318,10 +324,15 @@ public:
         }
     }
 
-    void erase(float key_) {
+    int erase(float key_) {
         // std::cout << "-------------------------------------------------------------------------------------------" << std::endl;
         // std::cout << "erase: key=" << key_ << "\n\n";
         SkipNode<T>* Node = find(key_).get_node();
+        if (Node == NIL) {
+            // std::cout << "no erase\n";
+            return 0;
+        }
+        // std::cout << Node->key << "\n";
         int tmp_c = Node->forwardNodes.size();
         SkipNode<T>* prev;
         if (head->forwardNodes[tmp_c-1] == Node && Node->forwardNodes[tmp_c-1] == NIL) {
@@ -343,6 +354,7 @@ public:
         }
         delete Node;
         size_list--;
+        return 1;
         // std::cout << "-------------------------------------------------------------------------------------------" << std::endl;
     }
 
@@ -635,6 +647,148 @@ std::ostream &operator<<(std::ostream &os, SkipList<T> &s) {
 };
 
 
+void time_prob() {
+    std::vector<float> v;
+    float n = 10000;
+    for (float i = 0; i < n; i++) {
+        v.push_back(i);
+    }
+
+    std::ofstream out; 
+    out.open("p1.txt");
+    std::cout << out.is_open() << "\n";
+
+    // float p = 0.1;
+    float key = 7777;
+    int N = 1000000;
+    double t;
+    double t11;
+    std::vector<double> time;
+    std::vector<float> prob;
+    std::vector<double> time_in;
+    std::chrono::duration<double, std::milli> fp;
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto t2 = std::chrono::high_resolution_clock::now();
+    for (float p = 0.05; p < 1; p += 0.01) {
+        std::cout << "start: " << p << "\n";
+        t = 0;
+        t11 = 0;
+        for (auto j = 0; j < 10; j++) {
+            std::cout << "START construct SkipList: " << j << "\n";
+            t1 = std::chrono::high_resolution_clock::now();
+            SkipList<float> s(v, v, p);
+            t2 = std::chrono::high_resolution_clock::now();
+            fp = t2 - t1;
+            t11 = t11 + fp.count();
+            std::cout << "construct SkipList: " << j << " - " << t11 << "\n";
+            t1 = std::chrono::high_resolution_clock::now();
+            for (auto i = 0; i < N; i++) {
+                s.find(key);
+            }
+            t2 = std::chrono::high_resolution_clock::now();
+            fp = t2 - t1;
+            t = t + fp.count();
+            std::cout << "finish: " << j << " - " << t << "\n";
+        }
+        // std::cout << fp.count() << "\n";
+        time.push_back(t);
+        prob.push_back(p);
+        time_in.push_back(t11);
+        std::cout << p << " - " << t << " al\n";
+    }
+
+    for (auto i = 0; i < time.size(); i++) {
+        out << prob[i] << "," << time[i] << "\n";
+    }
+
+    out.close();
+}
+
+void osim() {
+    // float key = 7777;
+    int N = 1000000;
+    double t_find;
+    double t_insert;
+    double t_erase;
+    std::vector<int> num;
+    std::vector<double> timef;
+    std::vector<double> timei;
+    std::vector<double> timee;
+    std::chrono::duration<double, std::milli> fp;
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::vector<float> v;
+    float n_0;
+    for (int n = 10*8; n < 50000; n *= 2) {
+        std::cout << "start: " << n << "\n";
+        t_erase = 0;
+        t_find = 0;
+        t_insert = 0;
+        v.shrink_to_fit();
+        n_0 = 0;
+        for (float i = 0; i < n; i++) {
+            n_0++;
+            v.push_back(i);
+        }
+        n_0++;
+        for (auto p = 0.05; p < 1; p += 0.05) {
+            std::cout << "START construct SkipList: " << p << "\n";
+            SkipList<float> s(v, v, p);
+            t1 = std::chrono::high_resolution_clock::now();
+            for (auto x = n_0+50; x > n_0-50; x--) {
+                s.insert(x, x);
+            }
+            t2 = std::chrono::high_resolution_clock::now();
+            fp = t2 - t1;
+            std::cout << fp.count() << "\n";
+            t_insert = t_insert + fp.count();
+            std::cout << "construct SkipList: " << "\n";
+            t1 = std::chrono::high_resolution_clock::now();
+            for (auto i = 0; i < N; i++) {
+                s.find(n_0);
+            }
+            t2 = std::chrono::high_resolution_clock::now();
+            fp = t2 - t1;
+            t_find = t_find + fp.count();
+            std::cout << "finish: " << "\n";
+            t1 = std::chrono::high_resolution_clock::now();
+            for (auto x = n_0-50; x < n_0+50; x++) {
+                s.erase(x);
+            }
+            t2 = std::chrono::high_resolution_clock::now();
+            fp = t2 - t1;
+            std::cout << fp.count() << "\n";
+            t_erase = t_erase + fp.count();
+        }
+        // std::cout << fp.count() << "\n";
+        timef.push_back(t_find);
+        timee.push_back(t_erase);
+        timei.push_back(t_insert);
+        num.push_back(n);
+        // std::cout << p << " - " << t_find << " al\n";
+    }
+
+    std::ofstream out; 
+    out.open("t_insert.txt");
+    std::cout << out.is_open() << "\n";
+    for (auto i = 0; i < num.size(); i++) {
+        out << num[i] << "," << timei[i] << "\n";
+    }
+    out.close();
+    out.open("t_find.txt");
+    std::cout << out.is_open() << "\n";
+    for (auto i = 0; i < num.size(); i++) {
+        out << num[i] << "," << timef[i] << "\n";
+    }
+    out.close();
+    out.open("t_erase.txt");
+    std::cout << out.is_open() << "\n";
+    for (auto i = 0; i < num.size(); i++) {
+        out << num[i] << "," << timee[i] << "\n";
+    }
+    out.close();
+}
+
 int main() {
     // SkipList<int> s(true);
     // std::cout << s.empty() << "\n";
@@ -655,10 +809,10 @@ int main() {
     // SkipNode<int>* head;
     // head->value;
     
-    SkipList<int> s({1, 2, 3, 4, 5, 6}, {1, 2, 3, 4, 5, 6});
-    std::cout << s << "\n";
+    // SkipList<int> s({1, 2, 3, 4, 5, 6}, {1, 2, 3, 4, 5, 6});
+    // std::cout << s << "\n";
 
-    SkipList<int> s1 = std::move(s);
+    // SkipList<int> s1 = std::move(s);
     // SkipNode<int>* tmp = s.find(3);
     // std::cout << tmp->key << "\n"; 
     // std::cout << tmp->prev->prev->key << "\n";    
@@ -678,12 +832,12 @@ int main() {
     // for (auto end = s.bend(); beg != end; ++beg) {
     //     *beg = 10;
     // }
-    auto beg = s.bbegin();
-    beg = beg + 3;
-    auto a = beg++;
+    // auto beg = s.bbegin();
+    // beg = beg + 3;
+    // auto a = beg++;
 
-    std::cout << *a << "\n";
-    std::cout << *beg << "\n";
+    // std::cout << *a << "\n";
+    // std::cout << *beg << "\n";
 
     // for (auto it = s.bbegin(); it != s.bend(); ++it) {
     //     std::cout << *it << " " << std::endl;
@@ -693,6 +847,7 @@ int main() {
 
     // std::cout << *(++++beg) << "\n";
 
+    osim();
 
     return 1;
 }
